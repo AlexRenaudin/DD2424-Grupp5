@@ -17,8 +17,13 @@ vocab_iter = PennTreebank(split='train')
 tokenizer = get_tokenizer('basic_english')
 counter = Counter()
 for line in vocab_iter:
-    counter.update(tokenizer(line))
+    #print(f'line = {tokenizer(line)}')
+    lines = tokenizer(line)
+    for l in lines: 
+        counter.update(list(l[:]))
+print(f'counter = {counter}')
 vocab = Vocab(counter)
+
 
 # Data
 train_iter, val_iter, test_iter = PennTreebank()
@@ -50,9 +55,9 @@ class Net(nn.Module):
     def forward(self, x):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device) 
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device)
-        print(x.size())
-        print(h0.size())
-        print(c0.size())
+        print("x.size(0): " + str(x.size()))
+        print("h0.size(): " + str(h0.size())) 
+        print("c0.size(): "+ str(c0.size())) 
         out, _ = self.lstm(x, (h0,c0))
         out = out[:, -1, :]
         return out
@@ -73,5 +78,5 @@ for epoch in range(n_epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        e = e + seq_length
+        e = e + seq_len
         print(e)
