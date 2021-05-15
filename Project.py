@@ -8,30 +8,6 @@ from torchtext.datasets import PennTreebank
 # GPU
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Data
-try:
-    train_tensor = torch.load('train_tensor.pt')
-    val_tensor = torch.load('val_tensor.pt')
-    test_tensor = torch.load('test_tensor.pt')
-except FileNotFoundError:
-    train_text, val_text, test_text = PennTreebank()
-    def text2tensor(length, text, seq_len, char2int):
-        n_seq = (length//seq_len)+1
-        tensor = torch.zeros(seq_len, n_seq)
-        i = 0
-        for line in text:
-            for word in line:
-                for c in word:
-                    tensor[i%seq_len, i//seq_len] = char2int[c]
-                    i += 1
-        return tensor
-    train_tensor = text2tensor(5101618, train_text, seq_len, char2int)
-    torch.save(train_tensor, 'train_tensor.pt')
-    val_tensor = text2tensor(399782, val_text, seq_len, char2int)
-    torch.save(val_tensor, 'val_tensor.pt')
-    test_tensor = text2tensor(449945, test_text, seq_len, char2int)
-    torch.save(test_tensor, 'test_tensor.pt')
-
 # Unique Characters
 unique_text = PennTreebank(split='train')
 unique = {}
@@ -56,6 +32,30 @@ seq_len  = 25
 momentum = 0.99
 m = 100
 K = len(unique)
+
+# Data
+try:
+    train_tensor = torch.load('train_tensor.pt')
+    val_tensor = torch.load('val_tensor.pt')
+    test_tensor = torch.load('test_tensor.pt')
+except FileNotFoundError:
+    train_text, val_text, test_text = PennTreebank()
+    def text2tensor(length, text, seq_len, char2int):
+        n_seq = (length//seq_len)+1
+        tensor = torch.zeros(seq_len, n_seq)
+        i = 0
+        for line in text:
+            for word in line:
+                for c in word:
+                    tensor[i%seq_len, i//seq_len] = char2int[c]
+                    i += 1
+        return tensor
+    train_tensor = text2tensor(5101618, train_text, seq_len, char2int)
+    torch.save(train_tensor, 'train_tensor.pt')
+    val_tensor = text2tensor(399782, val_text, seq_len, char2int)
+    torch.save(val_tensor, 'val_tensor.pt')
+    test_tensor = text2tensor(449945, test_text, seq_len, char2int)
+    torch.save(test_tensor, 'test_tensor.pt')
 
 # Network
 class Net(nn.Module):
