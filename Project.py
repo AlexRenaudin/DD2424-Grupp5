@@ -76,9 +76,9 @@ class Net(nn.Module):
         if self.model == 'rnn':
             x, _ = self.rnn(x, h0)
         elif self.model == 'gru':
-            x, _ = self.gru(x, (h0, c0))
+            x, _ = self.gru(x, h0)
         elif self.model == 'mut1':
-            x, _ = self.lstm(x, h0)
+            x, _ = self.lstm(x, (h0, c0))
         elif self.model == 'mut2':
             x, _ = self.lstm(x, (h0, c0))
         elif self.model == 'mut3':
