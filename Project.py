@@ -32,6 +32,7 @@ seq_len  = 25
 momentum = 0.99
 m = 100
 K = len(unique)
+model = 'lstm'
 
 # Data
 try:
@@ -59,23 +60,37 @@ except FileNotFoundError:
 
 # Network
 class Net(nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size, model):
         super(Net, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.model = model
+        self.rnn = nn.RNN(input_size = input_size, hidden_size = hidden_size)
         self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_size)
+        self.gru = nn.GRU(input_size = input_size, hidden_size = hidden_size)
         self.linear = nn.Linear(hidden_size, input_size)
 
     def forward(self, x):
         h0 = torch.zeros(1, 1, self.hidden_size).to(device) #1 layer and 1 batch
         c0 = torch.zeros(1, 1, self.hidden_size).to(device)
-        x, _ = self.lstm(x, (h0, c0)) # x -> h
+        if self.model == 'rnn':
+            x, _ = self.rnn(x, h0)
+        elif self.model == 'gru':
+            x, _ = self.gru(x, (h0, c0))
+        elif self.model == 'mut1':
+            x, _ = self.lstm(x, h0)
+        elif self.model == 'mut2':
+            x, _ = self.lstm(x, (h0, c0))
+        elif self.model == 'mut3':
+            x, _ = self.lstm(x, (h0, c0))
+        else:
+            x, _ = self.lstm(x, (h0, c0))       
         x = self.linear(x) # h -> y
         x = x[:,-1,:] #Reduce from 3 to 2 dimensions
         return x
 
 # Initialization 
-net = Net(K, m).to(device)
+net = Net(K, m, model).to(device)
 optimizer = torch.optim.SGD(net.parameters(), lr=eta)
 criterion = nn.CrossEntropyLoss()
 
