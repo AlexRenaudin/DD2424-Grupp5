@@ -87,6 +87,20 @@ def encode(tensor, K):
         new_tensor[i,tensor[i].long()] = 1 
     return new_tensor
 
+# Text generator
+def generate(n, char2int, int2char, K):
+    X = torch.tensor([char2int['.']])
+    X = encode(X, K)
+    text = '.'
+    for i in range(n):
+        y = net(X[:,None,:])
+        p = y[0].detach().numpy()
+        p =  np.exp(p)/sum(np.exp(p))
+        sample = np.random.choice(a = range(K), p = p)
+        text = text + int2char[sample]
+        X = y
+    return text
+
 # Training
 for epoch in range(n_epochs):
     for i in range(train_tensor.size(1)):
@@ -97,4 +111,9 @@ for epoch in range(n_epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print('loss =', loss.item())
+        if i/100 == i//100: 
+            print(i)
+            print('loss =', loss.item())
+        if i/100 == i//100: 
+            text = generate(100, char2int, int2char, K)
+            print(text)
