@@ -46,10 +46,12 @@ except FileNotFoundError:
         tensor = torch.zeros(seq_len, n_seq)
         i = 0
         for line in text:
+            line.strip()
             for word in line:
-                for c in word:
-                    tensor[i%seq_len, i//seq_len] = char2int[c]
-                    i += 1
+                if word.isalpha() or word.isspace():
+                    for c in word:
+                        tensor[i%seq_len, i//seq_len] = char2int[c]
+                        i += 1
         return tensor
     train_tensor = text2tensor(5101618, train_text, seq_len, char2int)
     torch.save(train_tensor, 'train_tensor.pt')
