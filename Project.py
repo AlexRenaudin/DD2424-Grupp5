@@ -154,7 +154,7 @@ criterion = nn.CrossEntropyLoss()
 
 # Training
 for epoch in range(n_epochs):
-    for i in range(train_tensor.size(1)):
+    for i in range(train_tensor.size(1)-1):
         X = train_tensor[:,i]
         target_Y = torch.cat((train_tensor[1:seq_len,i],train_tensor[0:1,i+1]),0).long()
         forward_Y = net(encode(X, K)[:,None,:])
@@ -170,7 +170,7 @@ for epoch in range(n_epochs):
             print(text)
 
 # Validation
-for i in range(val_tensor.size(1)):
+for i in range(val_tensor.size(1)-1):
     X = val_tensor[:,i]
     target_Y = torch.cat((val_tensor[1:seq_len,i],val_tensor[0:1,i+1]),0).long()
     forward_Y = net(encode(X, K)[:,None,:])
