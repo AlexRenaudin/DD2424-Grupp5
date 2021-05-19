@@ -10,11 +10,13 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Parameters
 n_epochs = 10
-eta = 0.01
+eta = 0.1
 seq_len  = 25
-momentum = 0.99
 m = 100
 variant = 'rnn' #rnn, lstm, 2-lstm, bi-lstm, gru
+layerxdirection = 1
+if variant == '2-lstm' or variant == 'bi-lstm':
+    layerxdirection = 2
 use_convnet = False
 convnet_out_channels = 5
 use_torchdata = False 
@@ -74,9 +76,6 @@ except FileNotFoundError:
     torch.save(train_tensor, 'train_tensor.pt')   
     torch.save(val_tensor, 'val_tensor.pt')
 
-
-print(train_tensor)
-
 # Network
 class Net(nn.Module):
     def __init__(self, input_size, hidden_size, variant, use_convnet, out_channels):
@@ -117,6 +116,7 @@ class Net(nn.Module):
             x, _ = self.model(x, (h0, c0))           
         else:
             x, _ = self.model(x, h0)
+            
         if self.use_convnet:
             x = self.conv(x)
             x = self.relu(x)
@@ -126,6 +126,7 @@ class Net(nn.Module):
             x = self.linear(x)
             x = x[:,-1,:]
         return x
+        
 
 # One-hot encoding
 def encode(tensor, K):
@@ -136,22 +137,22 @@ def encode(tensor, K):
     return new_tensor
 
 # Text generator
-def generate(n, char2int, int2char, K):
-    X = torch.tensor([char2int['.']])
-    X = encode(X, K)
-    text = '.'
-    for i in range(n):
-        y = net(X[:,None,:])
-        p = y[0].detach().numpy()
-        p =  np.exp(p)/sum(np.exp(p))
-        sample = np.random.choice(a = range(K), p = p)
-        text = text + int2char[sample]
-        X = y
-    return text
+def generate(n_gen, char2int, int2char, K, net):
+    X_gen = torch.tensor([char2int['.']])
+    X_gen = encode(X_gen, K)
+    text_gen = ''
+    for i in range(n_gen):
+        y_gen = net(X_gen[:,None,:])
+        p_gen = y_gen[0].detach().numpy()
+        p_gen =  np.exp(p_gen)/sum(np.exp(p_gen))
+        sample = np.random.choice(a = range(K), p = p_gen)
+        text_gen = text_gen + int2char[sample]
+        X_gen = y_gen
+    return text_gen
 
 # Initialization 
 net = Net(K, m, variant, use_convnet, convnet_out_channels).to(device)
-optimizer = torch.optim.SGD(net.parameters(), lr=eta)
+optimizer = torch.optim.Adagrad(net.parameters(), lr=eta)
 criterion = nn.CrossEntropyLoss()
 
 # Training
@@ -168,8 +169,9 @@ for epoch in range(n_epochs):
             print(i)
             print('loss =', loss.item())
         if i/100 == i//100: 
-            text = generate(100, char2int, int2char, K)
+            text = generate(200, char2int, int2char, K, net)
             print(text)
+            pass
 
 # Validation
 for i in range(val_tensor.size(1)-1):
