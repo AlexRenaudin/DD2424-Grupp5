@@ -63,11 +63,11 @@ except FileNotFoundError:
         return tensor
     if use_torchdata:
         train_text, val_text = PennTreebank(split=('train', 'valid'))
-        train_tensor = text2tensor((train_count//seq_len)+1, train_text, seq_len, char2int)
-        val_tensor = text2tensor((val_count//seq_len)+1, val_text, seq_len, char2int)
+        train_tensor = text2tensor((train_count//seq_len), train_text, seq_len, char2int)
+        val_tensor = text2tensor((val_count//seq_len), val_text, seq_len, char2int)
     else:
         full_text = f.readlines()
-        n_seq = (full_count//seq_len)+1
+        n_seq = (full_count//seq_len)
         full_tensor = text2tensor(n_seq, full_text, seq_len, char2int)
         val_size = n_seq//10
         train_tensor = full_tensor[:,0:n_seq-val_size]
