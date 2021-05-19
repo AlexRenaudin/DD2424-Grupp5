@@ -14,7 +14,7 @@ eta = 0.01
 seq_len  = 25
 momentum = 0.99
 m = 100
-variant = 'lstm' #rnn, lstm, 2-lstm, bi-lstm, gru
+variant = 'rnn' #rnn, lstm, 2-lstm, bi-lstm, gru
 use_convnet = False
 convnet_out_channels = 5
 use_torchdata = False 
@@ -34,8 +34,7 @@ if use_torchdata:
     train_count, unique = unique_count(train_unique_text)
     val_count, _ = unique_count(val_unique_text)
 else:
-    f = open('goblet_book.txt','r')
-    unique_text = f.readlines()
+    unique_text = open('goblet_book.txt','r').readlines()
     full_count, unique = unique_count(unique_text)
 
 # Dictionaries 
@@ -63,18 +62,21 @@ except FileNotFoundError:
         return tensor
     if use_torchdata:
         train_text, val_text = PennTreebank(split=('train', 'valid'))
-        train_tensor = text2tensor((train_count//seq_len), train_text, seq_len, char2int)
-        val_tensor = text2tensor((val_count//seq_len), val_text, seq_len, char2int)
+        train_tensor = text2tensor((train_count//seq_len)+1, train_text, seq_len, char2int)
+        val_tensor = text2tensor((val_count//seq_len)+1, val_text, seq_len, char2int)
     else:
-        full_text = f.readlines()
-        n_seq = (full_count//seq_len)
+        full_text = open('goblet_book.txt','r').readlines()
+        n_seq = (full_count//seq_len)+1
         full_tensor = text2tensor(n_seq, full_text, seq_len, char2int)
         val_size = n_seq//10
         train_tensor = full_tensor[:,0:n_seq-val_size]
         val_tensor = full_tensor[:,n_seq-val_size:n_seq]        
     torch.save(train_tensor, 'train_tensor.pt')   
     torch.save(val_tensor, 'val_tensor.pt')
-        
+
+
+print(train_tensor)
+
 # Network
 class Net(nn.Module):
     def __init__(self, input_size, hidden_size, variant, use_convnet, out_channels):
