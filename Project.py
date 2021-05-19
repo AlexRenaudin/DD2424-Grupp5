@@ -105,27 +105,24 @@ class Net(nn.Module):
             self.conv = nn.Conv1d(1, out_channels, kernel_size = 3, padding = 1)
             self.relu = nn.ReLU()
             self.flat = nn.Flatten()
-            self.connected = nn.Linear(self.num_directions*out_channels*hidden_size, input_size)
+            self.convfc = nn.Linear(self.num_directions*out_channels*hidden_size, input_size)
         else:   
-            self.linear = nn.Linear(self.num_directions*hidden_size, input_size)
+            self.fc = nn.Linear(self.num_directions*hidden_size, input_size)
 
-    def forward(self, x):
-        h0 = torch.zeros(self.num_layers*self.num_directions, 1, self.hidden_size).to(device)
+    def forward(self, x, H, C):
         if self.variant == 'lstm' or self.variant == '2-lstm' or self.variant == 'bi-lstm':
-            c0 = torch.zeros(self.num_layers*self.num_directions, 1, self.hidden_size).to(device)
-            x, _ = self.model(x, (h0, c0))           
+            x, H, C = self.model(x, (H.detach(), C.detach()))           
         else:
-            x, _ = self.model(x, h0)
-            
+            x, H = self.model(x, H.detach())    
         if self.use_convnet:
             x = self.conv(x)
             x = self.relu(x)
             x = self.flat(x)
-            x = self.connected(x)    
+            x = self.convfc(x)    
         else:  
-            x = self.linear(x)
+            x = self.fc(x)
             x = x[:,-1,:]
-        return x
+        return x, H, C
         
 
 # One-hot encoding
@@ -137,12 +134,14 @@ def encode(tensor, K):
     return new_tensor
 
 # Text generator
-def generate(n_gen, char2int, int2char, K, net):
+def generate(H, C, n_gen, char2int, int2char, K, net):
     X_gen = torch.tensor([char2int['.']])
     X_gen = encode(X_gen, K)
     text_gen = ''
+    H_gen = H
+    C_gen = C
     for i in range(n_gen):
-        y_gen = net(X_gen[:,None,:])
+        y_gen, H_gen, C_gen = net(X_gen[:,None,:], H_gen, C_gen)
         p_gen = y_gen[0].detach().numpy()
         p_gen =  np.exp(p_gen)/sum(np.exp(p_gen))
         sample = np.random.choice(a = range(K), p = p_gen)
@@ -157,10 +156,12 @@ criterion = nn.CrossEntropyLoss()
 
 # Training
 for epoch in range(n_epochs):
+    H = torch.zeros(layerxdirection, 1, m).to(device)
+    C = torch.zeros(layerxdirection, 1, m).to(device)
     for i in range(train_tensor.size(1)-1):
         X = train_tensor[:,i]
         target_Y = torch.cat((train_tensor[1:seq_len,i],train_tensor[0:1,i+1]),0).long()
-        forward_Y = net(encode(X, K)[:,None,:])
+        forward_Y, H, C = net(encode(X, K)[:,None,:], H, C)
         loss = criterion(forward_Y, target_Y)
         optimizer.zero_grad()
         loss.backward()
@@ -169,7 +170,7 @@ for epoch in range(n_epochs):
             print(i)
             print('loss =', loss.item())
         if i/100 == i//100: 
-            text = generate(200, char2int, int2char, K, net)
+            text = generate(H, C, 200, char2int, int2char, K, net)
             print(text)
             pass
 
