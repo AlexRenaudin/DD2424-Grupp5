@@ -11,6 +11,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Parameters
 n_epochs = 100
 eta = 0.001
+alpha = 0.9
 seq_len  = 25
 m = 100
 variant = 'rnn' #rnn, lstm, 2-lstm, bi-lstm, gru
@@ -20,8 +21,9 @@ if variant == '2-lstm' or variant == 'bi-lstm':
 use_convnet = False
 convnet_out_channels = 5
 use_torchdata = False
-#file_name = 'names.txt'
-file_name = 'goblet_book.txt'
+file_name = 'names.txt'
+#file_name = 'goblet_book.txt'
+#file_name = 'test.txt'
 
 # Unique Characters
 def unique_count(unique_text):
@@ -75,8 +77,8 @@ except FileNotFoundError:
         val_size = n_seq//10
         train_tensor = full_tensor[:,0:n_seq-val_size]
         val_tensor = full_tensor[:,n_seq-val_size:n_seq]        
-    torch.save(train_tensor, 'train_tensor.pt')   
-    torch.save(val_tensor, 'val_tensor.pt')
+    #torch.save(train_tensor, 'train_tensor.pt')   
+    #torch.save(val_tensor, 'val_tensor.pt')
 
 # Network
 class Net(nn.Module):
@@ -124,6 +126,7 @@ class Net(nn.Module):
         else:  
             x = self.fc(x)
             x = x[:,-1,:]
+        x = torch.clamp(x, -2, 2)
         return x, H, C
         
 
@@ -153,7 +156,7 @@ def generate(H, C, n_gen, char2int, int2char, K, net):
 
 # Initialization 
 net = Net(K, m, variant, use_convnet, convnet_out_channels).to(device)
-optimizer = torch.optim.RMSprop(net.parameters(), lr=0.001, alpha = 0.9)
+optimizer = torch.optim.RMSprop(net.parameters(), lr=eta, alpha = alpha)
 criterion = nn.CrossEntropyLoss()
 
 # Training
@@ -169,12 +172,11 @@ for epoch in range(n_epochs):
         loss.backward()
         optimizer.step()
         if i == 0:
-            print(i)
             smooth_loss = loss.item()
-            print('smooth loss =', smooth_loss)
+        else:
+            smooth_loss = 0.999* smooth_loss + 0.001*loss.item()            
         if i/100 == i//100: 
             print(i)
-            smooth_loss = 0.999* smooth_loss + 0.001*loss.item()
             print('smooth loss =', smooth_loss)
         if i/100 == i//100: 
             text = generate(H, C, 200, char2int, int2char, K, net)
