@@ -21,9 +21,10 @@ if variant == '2-lstm' or variant == 'bi-lstm':
 use_convnet = False
 convnet_out_channels = 5
 use_torchdata = False
-file_name = 'names.txt'
-#file_name = 'goblet_book.txt'
-#file_name = 'test.txt'
+#file_name = 'names.txt'
+file_name = 'goblet_book.txt'
+#file_name = 'Hermione.txt'
+#file_name = 'random.txt'
 
 # Unique Characters
 def unique_count(unique_text):
@@ -115,9 +116,10 @@ class Net(nn.Module):
 
     def forward(self, x, H, C):
         if self.variant == 'lstm' or self.variant == '2-lstm' or self.variant == 'bi-lstm':
-            x, H, C = self.model(x, (H.detach(), C.detach()))           
+            x, (H, C) = self.model(x, (H.detach(), C.detach()))           
         else:
-            x, H = self.model(x, H.detach())    
+            x, H = self.model(x, H.detach())
+            x = torch.clamp(x, -1, 1)  
         if self.use_convnet:
             x = self.conv(x)
             x = self.relu(x)
@@ -126,7 +128,6 @@ class Net(nn.Module):
         else:  
             x = self.fc(x)
             x = x[:,-1,:]
-        x = torch.clamp(x, -2, 2)
         return x, H, C
         
 
@@ -140,7 +141,7 @@ def encode(tensor, K):
 
 # Text generator
 def generate(H, C, n_gen, char2int, int2char, K, net):
-    X_gen = torch.tensor([char2int['H']])
+    X_gen = torch.tensor([char2int['a']])
     X_gen = encode(X_gen, K)
     text_gen = ''
     H_gen = H
