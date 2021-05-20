@@ -9,8 +9,8 @@ from torchtext.datasets import PennTreebank
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Parameters
-n_epochs = 10
-eta = 0.1
+n_epochs = 100
+eta = 0.001
 seq_len  = 25
 m = 100
 variant = 'rnn' #rnn, lstm, 2-lstm, bi-lstm, gru
@@ -19,7 +19,9 @@ if variant == '2-lstm' or variant == 'bi-lstm':
     layerxdirection = 2
 use_convnet = False
 convnet_out_channels = 5
-use_torchdata = False 
+use_torchdata = False
+#file_name = 'names.txt'
+file_name = 'goblet_book.txt'
 
 # Unique Characters
 def unique_count(unique_text):
@@ -36,7 +38,7 @@ if use_torchdata:
     train_count, unique = unique_count(train_unique_text)
     val_count, _ = unique_count(val_unique_text)
 else:
-    unique_text = open('goblet_book.txt','r').readlines()
+    unique_text = open(file_name,'r').readlines()
     full_count, unique = unique_count(unique_text)
 
 # Dictionaries 
@@ -67,7 +69,7 @@ except FileNotFoundError:
         train_tensor = text2tensor((train_count//seq_len)+1, train_text, seq_len, char2int)
         val_tensor = text2tensor((val_count//seq_len)+1, val_text, seq_len, char2int)
     else:
-        full_text = open('goblet_book.txt','r').readlines()
+        full_text = open(file_name,'r').readlines()
         n_seq = (full_count//seq_len)+1
         full_tensor = text2tensor(n_seq, full_text, seq_len, char2int)
         val_size = n_seq//10
@@ -135,7 +137,7 @@ def encode(tensor, K):
 
 # Text generator
 def generate(H, C, n_gen, char2int, int2char, K, net):
-    X_gen = torch.tensor([char2int['.']])
+    X_gen = torch.tensor([char2int['H']])
     X_gen = encode(X_gen, K)
     text_gen = ''
     H_gen = H
@@ -151,7 +153,7 @@ def generate(H, C, n_gen, char2int, int2char, K, net):
 
 # Initialization 
 net = Net(K, m, variant, use_convnet, convnet_out_channels).to(device)
-optimizer = torch.optim.Adagrad(net.parameters(), lr=eta)
+optimizer = torch.optim.RMSprop(net.parameters(), lr=0.001, alpha = 0.9)
 criterion = nn.CrossEntropyLoss()
 
 # Training
@@ -166,23 +168,27 @@ for epoch in range(n_epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        if i == 0:
+            print(i)
+            smooth_loss = loss.item()
+            print('smooth loss =', smooth_loss)
         if i/100 == i//100: 
             print(i)
-            print('loss =', loss.item())
+            smooth_loss = 0.999* smooth_loss + 0.001*loss.item()
+            print('smooth loss =', smooth_loss)
         if i/100 == i//100: 
             text = generate(H, C, 200, char2int, int2char, K, net)
             print(text)
-            pass
 
 # Validation
 for i in range(val_tensor.size(1)-1):
     X = val_tensor[:,i]
     target_Y = torch.cat((val_tensor[1:seq_len,i],val_tensor[0:1,i+1]),0).long()
-    forward_Y = net(encode(X, K)[:,None,:])
+    forward_Y, H, C = net(encode(X, K)[:,None,:], H, C)
     loss = criterion(forward_Y, target_Y)
     loss.backward()
     if i/100 == i//100: 
         print(i)
         print('loss =', loss.item())
-text = generate(1000, char2int, int2char, K)
+text = generate(H, C, 1000, char2int, int2char, K, net)
 print(text)
