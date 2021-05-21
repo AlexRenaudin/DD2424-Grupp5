@@ -64,51 +64,55 @@ class Net(nn.Module):
 
 
 class ModelInstance():
-    def __init__(self):
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    def __init__(self, variant = 'rnn'):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.variant = variant
+        print(f'Running variant: {variant}')
         # Parameters
-        n_epochs = 1
-        eta = 0.001
-        alpha = 0.9
-        seq_len  = 25
-        m = 100
-        variant = 'rnn' #rnn, lstm, 2-lstm, bi-lstm, gru
-        layerxdirection = 1
-        if variant == '2-lstm' or variant == 'bi-lstm':
-            layerxdirection = 2
-        use_convnet = False
-        convnet_out_channels = 5
-        use_torchdata = False
+        self.n_epochs = 1
+        self.training_losses = []
+        self.validation_losses = []
+        self.eta = 0.001
+        self.alpha = 0.9
+        self.seq_len  = 25
+        self.m = 100
+        #variant = 'rnn' #rnn, lstm, 2-lstm, bi-lstm, gru
+        self.layerxdirection = 1
+        if self.variant == '2-lstm' or self.variant == 'bi-lstm':
+            self.layerxdirection = 2
+        self.use_convnet = False
+        self.convnet_out_channels = 5
+        self.use_torchdata = False
         #file_name = 'names.txt'
-        file_name = 'goblet_book.txt'
+        self.file_name = 'goblet_book.txt'
+        #self.file_name = 'goblet_short.txt'
         #file_name = 'Hermione.txt'
         #file_name = 'random.txt'
-        training_losses = []
-        validation_losses = []
 
 
-        if use_torchdata:
+
+        if self.use_torchdata:
             train_unique_text, val_unique_text = PennTreebank(split=('train','valid'))
             train_count, unique = unique_count(train_unique_text)
             val_count, _ = unique_count(val_unique_text)
         else:
-            unique_text = open(file_name,'r').readlines()
-            full_count, unique = unique_count(self, unique_text)
+            unique_text = open(self.file_name,'r').readlines()
+            self.full_count, self.unique = unique_count(self, unique_text)
+    
 
 
+        self.int2char = {}
+        self.char2int = {}
+        self.K = 0
+        for c in self.unique:
+            self.int2char[self.K] = c
+            self.char2int[c] = self.K
+            self.K += 1
+        
 
-
-    # Dictionaries 
-        int2char = {}
-        char2int = {}
-        K = 0
-        for c in unique:
-            int2char[K] = c
-            char2int[c] = K
-            K += 1
-
-    # Data
+    def run_model(self):
+        print('')
         try:
             train_tensor = torch.load('train_tensor.pt')
             val_tensor = torch.load('val_tensor.pt')
@@ -122,32 +126,32 @@ class ModelInstance():
                                 tensor[i%seq_len, i//seq_len] = char2int[c]
                                 i += 1
                 return tensor
-            if use_torchdata:
+            if self.use_torchdata:
                 train_text, val_text = PennTreebank(split=('train', 'valid'))
-                train_tensor = text2tensor((train_count//seq_len)+1, train_text, seq_len, char2int)
-                val_tensor = text2tensor((val_count//seq_len)+1, val_text, seq_len, char2int)
+                train_tensor = text2tensor((self.train_count//self.seq_len)+1, train_text, self.seq_len, self.char2int)
+                val_tensor = text2tensor((self.val_count//self.seq_len)+1, val_text, self.seq_len, self.char2int)
             else:
-                full_text = open(file_name,'r').readlines()
-                n_seq = (full_count//seq_len)+1
-                full_tensor = text2tensor(n_seq, full_text, seq_len, char2int)
+                full_text = open(self.file_name,'r').readlines()
+                n_seq = (self.full_count//self.seq_len)+1
+                full_tensor = text2tensor(n_seq, full_text, self.seq_len, self.char2int)
                 val_size = n_seq//10
                 train_tensor = full_tensor[:,0:n_seq-val_size]
                 val_tensor = full_tensor[:,n_seq-val_size:n_seq]        
         #torch.save(train_tensor, 'train_tensor.pt')   
         #torch.save(val_tensor, 'val_tensor.pt')
-    # Initialization 
-        net = Net(K, m, variant, use_convnet, convnet_out_channels).to(device)
-        optimizer = torch.optim.RMSprop(net.parameters(), lr=eta, alpha = alpha)
+
+        net = Net(self.K, self.m, self.variant, self.use_convnet, self.convnet_out_channels).to(self.device)
+        optimizer = torch.optim.RMSprop(net.parameters(), lr=self.eta, alpha = self.alpha)
         criterion = nn.CrossEntropyLoss()
 
-    # Training
-        for epoch in range(n_epochs):
-            H = torch.zeros(layerxdirection, 1, m).to(device)
-            C = torch.zeros(layerxdirection, 1, m).to(device)
+
+        for epoch in range(self.n_epochs):
+            H = torch.zeros(self.layerxdirection, 1, self.m).to(self.device)
+            C = torch.zeros(self.layerxdirection, 1, self.m).to(self.device)
             for i in range(train_tensor.size(1)-1):
                 X = train_tensor[:,i]
-                target_Y = torch.cat((train_tensor[1:seq_len,i],train_tensor[0:1,i+1]),0).long()
-                forward_Y, H, C = net(encode(self, X, K)[:,None,:], H, C)
+                target_Y = torch.cat((train_tensor[1:self.seq_len,i],train_tensor[0:1,i+1]),0).long()
+                forward_Y, H, C = net(encode(self, X, self.K)[:,None,:], H, C)
                 loss = criterion(forward_Y, target_Y)
                 optimizer.zero_grad()
                 loss.backward()
@@ -156,35 +160,36 @@ class ModelInstance():
                     smooth_loss = loss.item()
                 else:
                     smooth_loss = 0.999* smooth_loss + 0.001*loss.item()  
-                    training_losses.append(smooth_loss)          
+                    self.training_losses.append(smooth_loss)          
                 if i/100 == i//100: 
-                    #print(i)
-                    print('smooth loss =', smooth_loss)
+                    print(f'training iteration {i}/{train_tensor.size(1)-1} epoch {epoch+1}/{self.n_epochs} for {self.variant}', end = '\r')
+                    #print('smooth loss =', smooth_loss)
                     pass
                 if i/100 == i//100: 
-                    text = generate(self, H, C, 200, char2int, int2char, K, net)
+                    #text = generate(self, H, C, 200, self.char2int, self.int2char, self.K, net)
                     #print(text)
                     pass
-
-    # Validation
+        print('')
         for i in range(val_tensor.size(1)-1):
             X = val_tensor[:,i]
-            target_Y = torch.cat((val_tensor[1:seq_len,i],val_tensor[0:1,i+1]),0).long()
-            forward_Y, H, C = net(encode(self,X, K)[:,None,:], H, C)
+            target_Y = torch.cat((val_tensor[1:self.seq_len,i],val_tensor[0:1,i+1]),0).long()
+            forward_Y, H, C = net(encode(self,X, self.K)[:,None,:], H, C)
             loss = criterion(forward_Y, target_Y)
             loss.backward()
             if i == 0:
                 smooth_loss = loss.item()
             else:
                 smooth_loss = 0.999 * smooth_loss + 0.001*loss.item()
+                self.validation_losses.append(smooth_loss)
             if i/100 == i//100: 
-                validation_losses.append(smooth_loss)
-                print(i)
-                print('val loss =', smooth_loss)
-        text = generate(self, H, C, 1000, char2int, int2char, K, net)
-        
-        print(text)
-        # Unique Characters
+                print(f'validation iteration {i}/{val_tensor.size(1)-1} for {self.variant}', end = '\r')
+                #print('val loss =', smooth_loss)
+        #text = generate(self, H, C, 1000, self.char2int, self.int2char, self.K, net)
+        print('')
+    
+    # Unique Characters
+    def get_losses(self):
+        return self.training_losses, self.validation_losses
 def unique_count(self, unique_text):
     unique = {}
     c_count = 0
@@ -219,3 +224,8 @@ def generate(self,H, C, n_gen, char2int, int2char, K, net):
         X_gen = y_gen
     return text_gen
 
+def run_model(variant):
+    m = ModelInstance(variant)
+    m.run_model()
+    test_l, val_l = m.get_losses()
+    return test_l, val_l
