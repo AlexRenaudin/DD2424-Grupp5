@@ -72,7 +72,7 @@ class ModelInstance():
         # Parameters
         self.n_epochs = 1
         self.training_losses = []
-        self.validation_losses = []
+        self.test_losses = []
         self.eta = 0.001
         self.alpha = 0.9
         self.seq_len  = 25
@@ -93,9 +93,9 @@ class ModelInstance():
 
 
         if self.use_torchdata:
-            self.train_unique_text, self.val_unique_text = PennTreebank(split=('train','valid'))
+            self.train_unique_text, self.test_unique_text = PennTreebank(split=('train','test'))
             self.train_count, self.unique = unique_count(self, self.train_unique_text)
-            self.val_count, _ = unique_count(self, self.val_unique_text)
+            self.test_count, _ = unique_count(self, self.test_unique_text)
         else:
             self.unique_text = open(self.file_name,'r').readlines()
             self.full_count, self.unique = unique_count(self, unique_text)
@@ -115,7 +115,7 @@ class ModelInstance():
         print('')
         try:
             train_tensor = torch.load('train_tensor.pt')
-            val_tensor = torch.load('val_tensor.pt')
+            test_tensor = torch.load('test_tensor.pt')
         except FileNotFoundError:        
             def text2tensor(n_seq, text, seq_len, char2int):
                 tensor = torch.zeros(seq_len, n_seq)
@@ -127,18 +127,18 @@ class ModelInstance():
                                 i += 1
                 return tensor
             if self.use_torchdata:
-                train_text, val_text = PennTreebank(split=('train', 'valid'))
+                train_text, test_text = PennTreebank(split=('train', 'test'))
                 train_tensor = text2tensor((self.train_count//self.seq_len)+1, train_text, self.seq_len, self.char2int)
-                val_tensor = text2tensor((self.val_count//self.seq_len)+1, val_text, self.seq_len, self.char2int)
+                test_tensor = text2tensor((self.test_count//self.seq_len)+1, test_text, self.seq_len, self.char2int)
             else:
                 full_text = open(self.file_name,'r').readlines()
                 n_seq = (self.full_count//self.seq_len)+1
                 full_tensor = text2tensor(n_seq, full_text, self.seq_len, self.char2int)
-                val_size = n_seq//10
-                train_tensor = full_tensor[:,0:n_seq-val_size]
-                val_tensor = full_tensor[:,n_seq-val_size:n_seq]        
+                test_size = n_seq//10
+                train_tensor = full_tensor[:,0:n_seq-test_size]
+                test_tensor = full_tensor[:,n_seq-test_size:n_seq]        
         torch.save(train_tensor, 'train_tensor.pt')   
-        torch.save(val_tensor, 'val_tensor.pt')
+        torch.save(test_tensor, 'test_tensor.pt')
 
         net = Net(self.K, self.m, self.variant, self.use_convnet, self.convnet_out_channels).to(self.device)
         optimizer = torch.optim.RMSprop(net.parameters(), lr=self.eta, alpha = self.alpha)
@@ -170,9 +170,9 @@ class ModelInstance():
                     #print(text)
                     pass
         print('')
-        for i in range(val_tensor.size(1)-1):
-            X = val_tensor[:,i]
-            target_Y = torch.cat((val_tensor[1:self.seq_len,i],val_tensor[0:1,i+1]),0).long()
+        for i in range(test_tensor.size(1)-1):
+            X = test_tensor[:,i]
+            target_Y = torch.cat((test_tensor[1:self.seq_len,i],test_tensor[0:1,i+1]),0).long()
             forward_Y, H, C = net(encode(self,X, self.K)[:,None,:], H, C)
             loss = criterion(forward_Y, target_Y)
             loss.backward()
@@ -180,16 +180,16 @@ class ModelInstance():
                 smooth_loss = loss.item()
             else:
                 smooth_loss = 0.999 * smooth_loss + 0.001*loss.item()
-                self.validation_losses.append(smooth_loss)
+                self.test_losses.append(smooth_loss)
             if i/100 == i//100: 
-                print(f'validation iteration {i}/{val_tensor.size(1)-1} for {self.variant}', end = '\r')
-                #print('val loss =', smooth_loss)
+                print(f'test iteration {i}/{test_tensor.size(1)-1} for {self.variant}', end = '\r')
+                #print('test loss =', smooth_loss)
         #text = generate(self, H, C, 1000, self.char2int, self.int2char, self.K, net)
         print('')
     
     # Unique Characters
     def get_losses(self):
-        return self.training_losses, self.validation_losses
+        return self.training_losses, self.test_losses
 def unique_count(self, unique_text):
     unique = {}
     c_count = 0
@@ -227,5 +227,5 @@ def generate(self,H, C, n_gen, char2int, int2char, K, net):
 def run_model(variant):
     m = ModelInstance(variant)
     m.run_model()
-    test_l, val_l = m.get_losses()
-    return test_l, val_l
+    test_l, test_l = m.get_losses()
+    return test_l, test_l
