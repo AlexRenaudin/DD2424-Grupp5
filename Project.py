@@ -83,9 +83,9 @@ class ModelInstance():
             self.layerxdirection = 2
         self.use_convnet = False
         self.convnet_out_channels = 5
-        self.use_torchdata = False
+        self.use_torchdata = True
         #file_name = 'names.txt'
-        self.file_name = 'goblet_book.txt'
+        #self.file_name = 'goblet_book.txt'
         #self.file_name = 'goblet_short.txt'
         #file_name = 'Hermione.txt'
         #file_name = 'random.txt'
@@ -93,11 +93,11 @@ class ModelInstance():
 
 
         if self.use_torchdata:
-            train_unique_text, val_unique_text = PennTreebank(split=('train','valid'))
-            train_count, unique = unique_count(train_unique_text)
-            val_count, _ = unique_count(val_unique_text)
+            self.train_unique_text, self.val_unique_text = PennTreebank(split=('train','valid'))
+            self.train_count, self.unique = unique_count(self, self.train_unique_text)
+            self.val_count, _ = unique_count(self, self.val_unique_text)
         else:
-            unique_text = open(self.file_name,'r').readlines()
+            self.unique_text = open(self.file_name,'r').readlines()
             self.full_count, self.unique = unique_count(self, unique_text)
     
 
@@ -137,8 +137,8 @@ class ModelInstance():
                 val_size = n_seq//10
                 train_tensor = full_tensor[:,0:n_seq-val_size]
                 val_tensor = full_tensor[:,n_seq-val_size:n_seq]        
-        #torch.save(train_tensor, 'train_tensor.pt')   
-        #torch.save(val_tensor, 'val_tensor.pt')
+        torch.save(train_tensor, 'train_tensor.pt')   
+        torch.save(val_tensor, 'val_tensor.pt')
 
         net = Net(self.K, self.m, self.variant, self.use_convnet, self.convnet_out_channels).to(self.device)
         optimizer = torch.optim.RMSprop(net.parameters(), lr=self.eta, alpha = self.alpha)
